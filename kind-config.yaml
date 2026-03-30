@@ -1,0 +1,35 @@
+# ============================================================
+#  LabLabee – Challenge 3: ODA Canvas
+#  Kind Cluster Configuration
+#  1 control-plane node – optimized for 4GB RAM
+# ============================================================
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+
+name: oda-lab
+
+nodes:
+  - role: control-plane
+    # Port mappings so we can access services from the host
+    extraPortMappings:
+      - containerPort: 30000
+        hostPort: 3000
+        protocol: TCP
+      - containerPort: 30081
+        hostPort: 8081
+        protocol: TCP
+      - containerPort: 30082
+        hostPort: 8082
+        protocol: TCP
+    # Resource limits for the Kind node container
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+            eviction-hard: "memory.available<200Mi"
+
+# Use a specific Kubernetes version compatible with ODA Canvas v1.1.0
+# kubernetesVersion: v1.28.0

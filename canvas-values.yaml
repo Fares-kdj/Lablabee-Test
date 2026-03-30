@@ -1,0 +1,60 @@
+# ============================================================
+#  LabLabee – Challenge 3: ODA Canvas
+#  Helm Values – canvas-oda chart v1.1.0
+#  Tuned for a 4GB RAM lab environment (single-node Kind)
+# ============================================================
+
+# ── Canvas Controller ─────────────────────────────────────
+componentOperator:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+apiOperator:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+# ── Security (simplified for lab – no production use) ─────
+security:
+  enabled: false          # Disable Keycloak to save RAM in lab
+
+# ── Observability (disabled to save RAM) ──────────────────
+serviceMonitor:
+  enabled: false
+
+# ── Canvas UI ─────────────────────────────────────────────
+canvasUI:
+  enabled: true
+  service:
+    type: NodePort
+    nodePort: 30000
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+# ── Ingress (not needed – using NodePort for lab) ─────────
+ingress:
+  enabled: false
+
+# ── cert-manager issuer ───────────────────────────────────
+certManager:
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer

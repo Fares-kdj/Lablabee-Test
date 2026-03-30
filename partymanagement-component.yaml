@@ -1,0 +1,135 @@
+# ============================================================
+#  LabLabee – Challenge 3: ODA Canvas
+#  ODA Component: Party Management
+#  TMF Open API: TMF632 v4
+# ============================================================
+
+apiVersion: oda.tmforum.org/v1beta3
+kind: Component
+metadata:
+  name: partymanagement
+  namespace: canvas
+  labels:
+    app: partymanagement
+    oda.tmforum.org/componentName: partymanagement
+    lablabee.io/challenge: "3"
+spec:
+  type: partymanagement
+  selector:
+    matchLabels:
+      app: partymanagement
+
+  # ── Core Function ─────────────────────────────────────────
+  coreFunction:
+
+    exposedAPIs:
+      - name: partymanagement
+        specification: >-
+          https://tmforum-rand.github.io/TMForum-ODA-Asset-Build/swaggers/TMF632-Party-v4.0.0.swagger.json
+        implementation: /partymanagement/tmf-api/partyManagement/v4
+        path: /partymanagement/tmf-api/partyManagement/v4
+        port: 8080
+        resources:
+          - individual
+          - organization
+
+    dependentAPIs: []
+
+    publishedEvents:
+      - name: IndividualCreateEvent
+        href: /partymanagement/tmf-api/partyManagement/v4/hub
+      - name: OrganizationCreateEvent
+        href: /partymanagement/tmf-api/partyManagement/v4/hub
+
+    subscribedEvents: []
+
+  # ── Management Function ───────────────────────────────────
+  managementFunction:
+    exposedAPIs:
+      - name: metrics
+        specification: prometheus
+        implementation: /partymanagement/metrics
+        path: /partymanagement/metrics
+        port: 8080
+
+  # ── Security Function ─────────────────────────────────────
+  securityFunction:
+    controllerRole: Admin
+    exposedAPIs:
+      - name: partyrole
+        specification: >-
+          https://tmforum-rand.github.io/TMForum-ODA-Asset-Build/swaggers/TMF669-PartyRole-v4.0.0.swagger.json
+        implementation: /partymanagement/tmf-api/partyRoleManagement/v4
+        path: /partymanagement/tmf-api/partyRoleManagement/v4
+        port: 8080
+        resources:
+          - partyRole
+
+---
+# ── Deployment ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: partymanagement
+  namespace: canvas
+  labels:
+    app: partymanagement
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: partymanagement
+  template:
+    metadata:
+      labels:
+        app: partymanagement
+    spec:
+      containers:
+        - name: partymanagement
+          image: tmforumorg/tmf632-party-management:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "lab"
+            - name: SERVER_SERVLET_CONTEXT_PATH
+              value: "/tmf-api/partyManagement/v4"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "300m"
+          livenessProbe:
+            httpGet:
+              path: /tmf-api/partyManagement/v4/individual
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /tmf-api/partyManagement/v4/individual
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+
+---
+# ── Service ───────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: partymanagement-api
+  namespace: canvas
+  labels:
+    app: partymanagement
+spec:
+  type: NodePort
+  selector:
+    app: partymanagement
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30082

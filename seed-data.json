@@ -1,0 +1,77 @@
+{
+  "productCatalog": {
+    "catalogs": [
+      {
+        "name": "LabLabee Enterprise Catalog",
+        "description": "Main product catalog for LabLabee enterprise offerings",
+        "catalogType": "ProductCatalog",
+        "lifecycleStatus": "Active",
+        "validFor": {
+          "startDateTime": "2024-01-01T00:00:00Z"
+        }
+      }
+    ],
+    "productOfferings": [
+      {
+        "name": "5G Enterprise Slice – Standard",
+        "description": "Guaranteed QoS network slice for enterprise applications",
+        "lifecycleStatus": "Active",
+        "validFor": {
+          "startDateTime": "2024-01-01T00:00:00Z"
+        }
+      },
+      {
+        "name": "IoT Connectivity Pack – 1000 devices",
+        "description": "Managed IoT connectivity for up to 1000 endpoints",
+        "lifecycleStatus": "Active",
+        "validFor": {
+          "startDateTime": "2024-01-01T00:00:00Z"
+        }
+      },
+      {
+        "name": "SD-WAN Managed Service",
+        "description": "Software-defined WAN with SLA-backed performance",
+        "lifecycleStatus": "Active",
+        "validFor": {
+          "startDateTime": "2024-01-01T00:00:00Z"
+        }
+      }
+    ],
+    "productSpecifications": [
+      {
+        "name": "5G Network Slice Specification",
+        "description": "Technical specification for a 5G network slice resource",
+        "lifecycleStatus": "Active",
+        "version": "1.0"
+      }
+    ]
+  },
+  "partyManagement": {
+    "organizations": [
+      {
+        "tradingName": "LabLabee Corp",
+        "organizationType": "Company",
+        "status": "validated"
+      },
+      {
+        "tradingName": "Acme Telecom",
+        "organizationType": "Operator",
+        "status": "validated"
+      }
+    ],
+    "individuals": [
+      {
+        "givenName": "Alice",
+        "familyName": "Martin",
+        "gender": "female",
+        "status": "initialized"
+      },
+      {
+        "givenName": "Bob",
+        "familyName": "Dupont",
+        "gender": "male",
+        "status": "initialized"
+      }
+    ]
+  }
+}
