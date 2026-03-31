@@ -91,28 +91,160 @@ for i in $(seq 1 30); do
 done
 
 echo -e "${GREEN}  ✓ cert-manager ready.${NC}"
+# ─── 4.1. INSTALL ISTIO ────────────────────────────────────────────────────────
+echo ""
+echo -e "${YELLOW}[4.1/6] Installing Istio (required by ODA Canvas)...${NC}"
+
+# Add Istio Helm repo
+helm repo add istio https://istio-release.storage.googleapis.com/charts 2>/dev/null || true
+helm repo update >/dev/null
+
+# Create namespaces
+kubectl create namespace istio-system --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+kubectl create namespace istio-ingress --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+echo "  → Installing Istio base CRDs..."
+helm upgrade --install istio-base istio/base \
+  -n istio-system \
+  --wait >/dev/null
+echo -e "${GREEN}  ✓ Istio base installed.${NC}"
+
+echo "  → Installing Istiod control plane..."
+helm upgrade --install istiod istio/istiod \
+  -n istio-system \
+  --wait >/dev/null
+echo -e "${GREEN}  ✓ Istiod installed.${NC}"
+
+echo "  → Enabling sidecar injection on ingress namespace..."
+kubectl label namespace istio-ingress istio-injection=enabled --overwrite >/dev/null
+echo -e "${GREEN}  ✓ Namespace 'istio-ingress' labeled.${NC}"
+
+echo "  → Installing Istio ingress gateway..."
+if ! helm upgrade --install istio-ingress istio/gateway \
+  -n istio-ingress \
+  --set labels.app=istio-ingressgateway \
+  --set labels.istio=ingressgateway \
+  --set service.type=NodePort \
+  --wait \
+  --timeout 5m; then
+  echo -e "${RED}  ✗ Istio ingress gateway installation failed.${NC}"
+  echo ""
+  echo "  --- Services ---"
+  kubectl get svc -n istio-ingress || true
+  echo ""
+  echo "  --- Deployments ---"
+  kubectl get deploy -n istio-ingress || true
+  echo ""
+  echo "  --- Pods ---"
+  kubectl get pods -n istio-ingress -o wide || true
+  echo ""
+  echo "  --- Events ---"
+  kubectl get events -n istio-ingress --sort-by=.metadata.creationTimestamp || true
+  exit 1
+fi
+
+echo -e "${GREEN}  ✓ Istio ingress gateway installed.${NC}"
+echo -n "  Waiting for Istio components to be ready"
+for i in $(seq 1 36); do
+  ISTIOD_READY=$(kubectl get pods -n istio-system --no-headers 2>/dev/null | grep -c "Running" || true)
+  INGRESS_READY=$(kubectl get pods -n istio-ingress --no-headers 2>/dev/null | grep -c "Running" || true)
+  if [ "$ISTIOD_READY" -ge 1 ] && [ "$INGRESS_READY" -ge 1 ]; then
+    echo -e " ${GREEN}✓${NC}"
+    break
+  fi
+  echo -n "."
+  sleep 5
+done
+
+# Verify required Istio CRDs exist
+kubectl get crd gateways.networking.istio.io >/dev/null 2>&1 || {
+  echo -e "${RED}  ✗ Istio Gateway CRD not found after installation.${NC}"
+  exit 1
+}
+kubectl get crd virtualservices.networking.istio.io >/dev/null 2>&1 || {
+  echo -e "${RED}  ✗ Istio VirtualService CRD not found after installation.${NC}"
+  exit 1
+}
+
+echo -e "${GREEN}  ✓ Istio ready.${NC}"
+
+
+
+
+# ─── 5. PREPARE WEBHOOK TLS SECRET ───────────────────────────────────────────
+echo ""
+echo -e "${YELLOW}[5/7] Preparing webhook TLS secret...${NC}"
+
+kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+TMP_DIR=$(mktemp -d)
+
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout "${TMP_DIR}/tls.key" \
+  -out "${TMP_DIR}/tls.crt" \
+  -subj "/CN=compcrdwebhook.canvas.svc" >/dev/null 2>&1
+
+kubectl delete secret compcrdwebhook-secret -n "${NAMESPACE}" 2>/dev/null || true
+
+kubectl create secret tls compcrdwebhook-secret \
+  -n "${NAMESPACE}" \
+  --cert="${TMP_DIR}/tls.crt" \
+  --key="${TMP_DIR}/tls.key" >/dev/null
+
+rm -rf "${TMP_DIR}"
+
+echo -e "${GREEN}  ✓ compcrdwebhook-secret ready.${NC}"
+
+
+
+
+
+
+
 
 # ─── 4. INSTALL ODA CANVAS VIA HELM ──────────────────────────────────────────
 echo ""
-echo -e "${YELLOW}[4/6] Installing ODA Canvas (Helm chart v${CANVAS_VERSION})...${NC}"
+echo -e "${YELLOW}[5/7] Installing ODA Canvas (Helm chart v${CANVAS_VERSION})...${NC}"
 
-# Add tmforum-oda Helm repo
 helm repo add oda-canvas https://tmforum-oda.github.io/oda-canvas/ 2>/dev/null || true
 helm repo update >/dev/null
 
-# Create namespace
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
-# Install Canvas
-helm upgrade --install canvas oda-canvas/canvas-oda \
+echo "  → Installing Canvas..."
+if ! helm upgrade --install canvas oda-canvas/canvas-oda \
   --namespace "${NAMESPACE}" \
   --version "${CANVAS_VERSION}" \
   --values canvas-values.yaml \
+  --set cert-manager-init.cert-manager.enabled=false \
+  --set cert-manager-init.cert-manager.installCRDs=false \
+  --set keycloak.image.registry=docker.io \
+  --set keycloak.image.repository=bitnamilegacy/keycloak \
+  --set keycloak.image.tag=20.0.5-debian-11-r2 \
+  --set keycloak.postgresql.image.registry=docker.io \
+  --set keycloak.postgresql.image.repository=bitnamilegacy/postgresql \
+  --set keycloak.postgresql.image.tag=15.2.0-debian-11-r31 \
+  --set keycloak.keycloakConfigCli.image.registry=docker.io \
+  --set keycloak.keycloakConfigCli.image.repository=bitnamilegacy/keycloak-config-cli \
   --wait \
-  --timeout 10m
+  --timeout 5m; then  
+  echo -e "${RED}  ✗ ODA Canvas installation failed.${NC}"
+  echo ""
+  echo "  --- Pods in ${NAMESPACE} ---"
+  kubectl get pods -n "${NAMESPACE}" -o wide || true
+  echo ""
+  echo "  --- Deployments in ${NAMESPACE} ---"
+  kubectl get deploy -n "${NAMESPACE}" || true
+  echo ""
+  echo "  --- Services in ${NAMESPACE} ---"
+  kubectl get svc -n "${NAMESPACE}" || true
+  echo ""
+  echo "  --- Events in ${NAMESPACE} ---"
+  kubectl get events -n "${NAMESPACE}" --sort-by=.metadata.creationTimestamp || true
+  exit 1
+fi
 
 echo -e "${GREEN}  ✓ ODA Canvas installed in namespace '${NAMESPACE}'.${NC}"
-
 # ─── 5. DEPLOY ODA COMPONENTS ────────────────────────────────────────────────
 echo ""
 echo -e "${YELLOW}[5/6] Deploying ODA Components...${NC}"

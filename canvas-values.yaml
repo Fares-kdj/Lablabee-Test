@@ -54,7 +54,27 @@ ingress:
   enabled: false
 
 # ── cert-manager issuer ───────────────────────────────────
-certManager:
+cert-manager-init:
+  cert-manager:
+    enabled: false
+    installCRDs: false
   issuerRef:
     name: selfsigned-issuer
     kind: ClusterIssuer
+keycloak:
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/keycloak
+    tag: 20.0.5-debian-11-r2
+  service:
+    type: ClusterIP
+  postgresql:
+    enabled: true
+    image:
+      registry: docker.io
+      repository: bitnamilegacy/postgresql
+      tag: 15.2.0-debian-11-r31
+  keycloakConfigCli:
+    image:
+      registry: docker.io
+      repository: bitnamilegacy/keycloak-config-cli
