@@ -31,7 +31,7 @@ echo -e "${BLUE}  Based on tmforum-oda/oda-canvas (v${CANVAS_VERSION})${NC}"
 echo ""
 
 # ─── 1. CHECK PREREQUISITES ───────────────────────────────────────────────────
-echo -e "${YELLOW}[1/6] Checking prerequisites...${NC}"
+echo -e "${YELLOW}[1/8] Checking prerequisites...${NC}"
 
 check_tool() {
   if ! command -v "$1" &>/dev/null; then
@@ -61,7 +61,7 @@ fi
 
 # ─── 2. CREATE KIND CLUSTER ───────────────────────────────────────────────────
 echo ""
-echo -e "${YELLOW}[2/6] Creating Kind cluster '${CLUSTER_NAME}'...${NC}"
+echo -e "${YELLOW}[2/8] Creating Kind cluster '${CLUSTER_NAME}'...${NC}"
 
 if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
   echo -e "${GREEN}  ✓ Cluster '${CLUSTER_NAME}' already exists – skipping creation.${NC}"
@@ -75,7 +75,7 @@ echo -e "${GREEN}  ✓ kubectl context set to kind-${CLUSTER_NAME}${NC}"
 
 # ─── 3. INSTALL CERT-MANAGER ──────────────────────────────────────────────────
 echo ""
-echo -e "${YELLOW}[3/6] Installing cert-manager (required by ODA Canvas)...${NC}"
+echo -e "${YELLOW}[3/8] Installing cert-manager (required by ODA Canvas)...${NC}"
 
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml >/dev/null
 
@@ -93,7 +93,7 @@ done
 echo -e "${GREEN}  ✓ cert-manager ready.${NC}"
 # ─── 4.1. INSTALL ISTIO ────────────────────────────────────────────────────────
 echo ""
-echo -e "${YELLOW}[4.1/6] Installing Istio (required by ODA Canvas)...${NC}"
+echo -e "${YELLOW}[4/8] Installing Istio (required by ODA Canvas)...${NC}"
 
 # Add Istio Helm repo
 helm repo add istio https://istio-release.storage.googleapis.com/charts 2>/dev/null || true
@@ -173,7 +173,7 @@ echo -e "${GREEN}  ✓ Istio ready.${NC}"
 
 # ─── 5. PREPARE WEBHOOK TLS SECRET ───────────────────────────────────────────
 echo ""
-echo -e "${YELLOW}[5/7] Preparing webhook TLS secret...${NC}"
+echo -e "${YELLOW}[5/8] Preparing webhook TLS secret...${NC}"
 
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
@@ -204,7 +204,7 @@ echo -e "${GREEN}  ✓ compcrdwebhook-secret ready.${NC}"
 
 # ─── 4. INSTALL ODA CANVAS VIA HELM ──────────────────────────────────────────
 echo ""
-echo -e "${YELLOW}[5/7] Installing ODA Canvas (Helm chart v${CANVAS_VERSION})...${NC}"
+echo -e "${YELLOW}[6/8] Installing ODA Canvas (Helm chart v${CANVAS_VERSION})...${NC}"
 
 helm repo add oda-canvas https://tmforum-oda.github.io/oda-canvas/ 2>/dev/null || true
 helm repo update >/dev/null
@@ -247,7 +247,7 @@ fi
 echo -e "${GREEN}  ✓ ODA Canvas installed in namespace '${NAMESPACE}'.${NC}"
 # ─── 5. DEPLOY ODA COMPONENTS ────────────────────────────────────────────────
 echo ""
-echo -e "${YELLOW}[5/6] Deploying ODA Components...${NC}"
+echo -e "${YELLOW}[7/8] Deploying ODA Components...${NC}"
 
 echo "  → Deploying Product Catalog Management (TMF620)..."
 kubectl apply -f manifests/productcatalog-component.yaml -n "${NAMESPACE}" >/dev/null
@@ -270,7 +270,7 @@ done
 
 # ─── 6. SETUP PORT-FORWARDS ──────────────────────────────────────────────────
 echo ""
-echo -e "${YELLOW}[6/6] Setting up port-forwards...${NC}"
+echo -e "${YELLOW}[8/8] Setting up port-forwards...${NC}"
 
 # Kill any existing port-forwards
 pkill -f "kubectl port-forward" 2>/dev/null || true
