@@ -63,14 +63,49 @@ EOF
     --cert="${TMP}/tls.crt" \
     --key="${TMP}/tls.key" >/dev/null
 
-  # Patch CRD caBundle so Kubernetes trusts this cert for the webhook
+  rm -rf "${TMP}"
+  # Patch CRD + MutatingWebhookConfiguration caBundle from the stored secret
+  patch_ca_bundle
+}
+
+# ─── Helper: check whether the current secret already has a SAN cert ─────────
+secret_has_san() {
+  kubectl get secret compcrdwebhook-secret -n "${NAMESPACE}" \
+    -o jsonpath='{.data.tls\.crt}' 2>/dev/null \
+    | base64 -d \
+    | openssl x509 -noout -text 2>/dev/null \
+    | grep -q "Subject Alternative Name"
+}
+
+# ─── Helper: patch caBundle on BOTH the CRD and the MutatingWebhookConfiguration ───
+patch_ca_bundle() {
   local CA_BUNDLE
-  CA_BUNDLE=$(base64 -w0 < "${TMP}/tls.crt")
+  CA_BUNDLE=$(kubectl get secret compcrdwebhook-secret -n "${NAMESPACE}" \
+    -o jsonpath='{.data.tls\.crt}')
+
+  # 1. CRD conversion webhook
   kubectl patch crd components.oda.tmforum.org --type='json' \
     -p="[{\"op\":\"replace\",\"path\":\"/spec/conversion/webhook/clientConfig/caBundle\",\"value\":\"${CA_BUNDLE}\"}]" \
     >/dev/null 2>&1 || true
 
-  rm -rf "${TMP}"
+  # 2. MutatingWebhookConfiguration (Kubernetes calls this for every Component apply)
+  local MWC
+  MWC=$(kubectl get mutatingwebhookconfigurations --no-headers 2>/dev/null \
+    | grep -i "compcrd\|canvas\|oda" | awk '{print $1}' | head -1)
+  if [ -n "$MWC" ]; then
+    WEBHOOKS_COUNT=$(kubectl get mutatingwebhookconfiguration "${MWC}" \
+      -o jsonpath='{range .webhooks[*]}{.name}{"\n"}{end}' 2>/dev/null | wc -l)
+    PATCHES=""
+    for idx in $(seq 0 $((WEBHOOKS_COUNT - 1))); do
+      PATCHES="${PATCHES}{\"op\":\"replace\",\"path\":\"/webhooks/${idx}/clientConfig/caBundle\",\"value\":\"${CA_BUNDLE}\"},"
+    done
+    PATCHES="[${PATCHES%,}]"
+    kubectl patch mutatingwebhookconfiguration "${MWC}" --type='json' \
+      -p="${PATCHES}" >/dev/null 2>&1 || true
+    echo -e "${GREEN}  ✓ caBundle patched on MutatingWebhookConfiguration '${MWC}'.${NC}"
+  else
+    echo -e "${YELLOW}  ⚠ No MutatingWebhookConfiguration found – skipping MWC patch.${NC}"
+  fi
 }
 
 # ─── Helper: wait for webhook pod to be 1/1 Running ──────────────────────────
@@ -203,6 +238,7 @@ if ! helm upgrade --install canvas oda-canvas/canvas-oda \
   --values canvas-values.yaml \
   --set cert-manager-init.cert-manager.enabled=false \
   --set cert-manager-init.cert-manager.installCRDs=false \
+  --set compcrdwebhook.existingSecret=compcrdwebhook-secret \
   --set keycloak.image.registry=docker.io \
   --set keycloak.image.repository=bitnamilegacy/keycloak \
   --set keycloak.image.tag=20.0.5-debian-11-r2 \
@@ -219,14 +255,26 @@ if ! helm upgrade --install canvas oda-canvas/canvas-oda \
 fi
 echo -e "${GREEN}  ✓ ODA Canvas installed in namespace '${NAMESPACE}'.${NC}"
 
-# Helm overwrites compcrdwebhook-secret with its own CN-only cert → re-apply SANs
-echo "  → Re-applying SAN cert (Helm overwrites the secret)..."
-apply_san_cert
-echo -e "${GREEN}  ✓ SAN cert re-applied and CRD caBundle patched.${NC}"
+# If Helm overwrote the secret despite existingSecret, re-generate it
+if secret_has_san; then
+  echo -e "${GREEN}  ✓ Helm respected the existing secret – SAN cert intact.${NC}"
+else
+  echo -e "${YELLOW}  ⚠ Helm overwrote the secret – re-applying SAN cert (fallback)...${NC}"
+  apply_san_cert
+  echo -e "${GREEN}  ✓ SAN cert re-applied.${NC}"
+fi
 
-# Restart webhook pod so it picks up the new secret from disk
+# Always patch caBundle on BOTH CRD and MutatingWebhookConfiguration
+echo "  → Patching caBundle on CRD and MutatingWebhookConfiguration..."
+patch_ca_bundle
+echo -e "${GREEN}  ✓ caBundle patched on CRD.${NC}"
+
+# Restart webhook pod so it loads the correct cert from disk
 kubectl rollout restart deployment/compcrdwebhook -n "${NAMESPACE}" >/dev/null
 wait_for_webhook
+echo -n "  Giving webhook TLS stack time to warm up"
+for i in $(seq 1 10); do echo -n "."; sleep 1; done
+echo -e " ${GREEN}✓${NC}"
 echo -e "${GREEN}  ✓ Webhook ready with SAN certificate.${NC}"
 
 # ─── 7. DEPLOY ODA COMPONENTS ────────────────────────────────────────────────
