@@ -9,7 +9,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: productcatalog-server
-  namespace: canvas
+  namespace: components
 data:
   server.js: |
     const http = require('http');
@@ -67,7 +67,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: partymanagement-server
-  namespace: canvas
+  namespace: components
 data:
   server.js: |
     const http = require('http');
@@ -123,7 +123,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: productcatalog-api
-  namespace: canvas
+  namespace: components
   labels:
     app: productcatalog-api
     oda.tmforum.org/componentName: productcatalog
@@ -171,7 +171,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: productcatalog-api
-  namespace: canvas
+  namespace: components
   labels:
     app: productcatalog-api
     oda.tmforum.org/componentName: productcatalog
@@ -191,7 +191,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: partymanagement-api
-  namespace: canvas
+  namespace: components
   labels:
     app: partymanagement-api
     oda.tmforum.org/componentName: partymanagement
@@ -239,7 +239,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: partymanagement-api
-  namespace: canvas
+  namespace: components
   labels:
     app: partymanagement-api
     oda.tmforum.org/componentName: partymanagement
