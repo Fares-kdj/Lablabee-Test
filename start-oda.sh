@@ -285,6 +285,10 @@ echo "  → Deploying Deployments, Services and ConfigMaps..."
 kubectl apply -f manifests/services-and-configs.yaml >/dev/null
 echo -e "${GREEN}  ✓ Deployments, Services and ConfigMaps applied.${NC}"
 
+echo "  -> Deploying Canvas UI dashboard..."
+kubectl apply -f manifests/canvas-ui.yaml >/dev/null
+echo -e "${GREEN}  v Canvas UI deployed.${NC}"
+
 echo "  → Registering ProductCatalog ODA Component (TMF620)..."
 kubectl apply -f manifests/productcatalog-component.yaml -n "${NAMESPACE}" >/dev/null
 echo -e "${GREEN}  ✓ ProductCatalog component applied.${NC}"
@@ -300,23 +304,22 @@ for i in $(seq 1 36); do
   echo -n "."; sleep 5
 done
 
-# ─── 8. SETUP PORT-FORWARDS ──────────────────────────────────────────────────
+# ─── 8. SETUP PORT-FORWARDS ───────────────────────────────
 echo ""
 echo -e "${YELLOW}[8/8] Setting up port-forwards...${NC}"
 pkill -f "kubectl port-forward" 2>/dev/null || true
 sleep 1
-
-kubectl port-forward svc/canvas-oda-canvas-ui 3000:3000   -n "${NAMESPACE}" >/dev/null 2>&1 &
-echo -e "${GREEN}  ✓ Canvas UI       → http://localhost:3000${NC}"
-
-kubectl port-forward svc/productcatalog-api 8081:8080     -n "${NAMESPACE}" >/dev/null 2>&1 &
-echo -e "${GREEN}  ✓ ProductCatalog API → http://localhost:8081${NC}"
-
-kubectl port-forward svc/partymanagement-api 8082:8080    -n "${NAMESPACE}" >/dev/null 2>&1 &
-echo -e "${GREEN}  ✓ PartyManagement API → http://localhost:8082${NC}"
-
+ 
+kubectl port-forward --address 0.0.0.0 svc/canvas-ui  3000:3000 -n "${NAMESPACE}" >/dev/null 2>&1 &
+echo -e "${GREEN}  v Canvas UI          -> http://localhost:3000${NC}"
+ 
+kubectl port-forward --address 0.0.0.0 svc/productcatalog-api    8081:8080 -n "${NAMESPACE}" >/dev/null 2>&1 &
+echo -e "${GREEN}  v ProductCatalog API -> http://localhost:8081${NC}"
+ 
+kubectl port-forward --address 0.0.0.0 svc/partymanagement-api   8082:8080 -n "${NAMESPACE}" >/dev/null 2>&1 &
+echo -e "${GREEN}  v PartyManagement API-> http://localhost:8082${NC}"
+ 
 sleep 3
-
 # ─── DONE ────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
