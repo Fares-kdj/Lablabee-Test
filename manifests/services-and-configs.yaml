@@ -39,7 +39,7 @@ data:
       const resource = parts[0]; const id = parts[1];
       if (!resource || path === BASE) { send(res, 200, { status:'ok', api:'TMF620 ProductCatalog v4' }); return; }
       if (path === '/health') { send(res, 200, { status:'ok' }); return; }
-      if (path === '/metrics') { res.writeHead(200,{'Content-Type':'text/plain'}); res.end('requests_total 42\n'); return; }
+      if (path.endsWith('/metrics')) { res.writeHead(200,{'Content-Type':'text/plain'}); res.end('requests_total 42\n'); return; }
       if (!store[resource]) { send(res, 404, { message:'Resource not found: '+resource }); return; }
       let body = '';
       req.on('data', d => { body += d; });
@@ -95,7 +95,7 @@ data:
       const resource = parts[0]; const id = parts[1];
       if (!resource || path === BASE) { send(res, 200, { status:'ok', api:'TMF632 PartyManagement v4' }); return; }
       if (path === '/health') { send(res, 200, { status:'ok' }); return; }
-      if (path === '/metrics') { res.writeHead(200,{'Content-Type':'text/plain'}); res.end('requests_total 17\n'); return; }
+      if (path.endsWith('/metrics')) { res.writeHead(200,{'Content-Type':'text/plain'}); res.end('requests_total 17\n'); return; }
       if (!store[resource]) { send(res, 404, { message:'Resource not found: '+resource }); return; }
       let body = '';
       req.on('data', d => { body += d; });
