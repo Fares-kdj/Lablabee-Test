@@ -1,28 +1,19 @@
-# ============================================================
-#  LabLabee – Challenge 3: ODA Canvas
-#  ODA Component: Product Catalog Management – TMF620 v4
-#
-#  Schema verified from live CRD:
-#    coreFunction.properties: [ "dependentAPIs", "exposedAPIs" ]
-#  Note: "dependentAPIs" (with 't') – NOT "dependantAPIs"
-# ============================================================
-
-apiVersion: oda.tmforum.org/v1beta2
+apiVersion: oda.tmforum.org/v1beta3
 kind: Component
 metadata:
   name: productcatalog
-  namespace: canvas
+  namespace: components
   labels:
     oda.tmforum.org/componentName: productcatalog
     oda.tmforum.org/funtionalBlockName: CoreCommerce
     lablabee.io/challenge: "3"
 spec:
+  id: TMFC001
   name: ProductCatalogManagement
   functionalBlock: CoreCommerce
-  id: TMFC001
-  status: specified
+  description: "Product Catalog Management ODA-Component - LabLabee Challenge 3"
   version: "1.0.0"
-  description: "Product Catalog Management ODA-Component – LabLabee Challenge 3"
+  status: specified
   publicationDate: "2024-01-01T00:00:00Z"
   maintainers:
     - name: LabLabee
@@ -34,11 +25,12 @@ spec:
   coreFunction:
     exposedAPIs:
       - name: productcatalogmanagement
-        specification: https://raw.githubusercontent.com/tmforum-apis/TMF620_ProductCatalog/master/TMF620-ProductCatalog-v4.0.0.swagger.json
+        specification:
+          - https://raw.githubusercontent.com/tmforum-apis/TMF620_ProductCatalog/master/TMF620-ProductCatalog-v4.0.0.swagger.json
         implementation: productcatalog-api
         apitype: openapi
-        path: /productcatalog/tmf-api/productCatalogManagement/v4
-        developerUI: /productcatalog/tmf-api/productCatalogManagement/v4/docs
+        path: /tmf-api/productCatalogManagement/v4
+        developerUI: /tmf-api/productCatalogManagement/v4/docs
         port: 8080
     dependentAPIs:
       - name: partymanagement
@@ -48,6 +40,8 @@ spec:
   managementFunction:
     exposedAPIs:
       - name: metrics
+        specification:
+          - https://openmetrics.io/
         apitype: prometheus
         implementation: productcatalog-api
         path: /productcatalog/metrics
@@ -57,9 +51,10 @@ spec:
     controllerRole: Admin
     exposedAPIs:
       - name: partyrole
-        specification: https://raw.githubusercontent.com/tmforum-apis/TMF669_PartyRole/master/TMF669-PartyRole-v4.0.0.swagger.json
+        specification:
+          - https://raw.githubusercontent.com/tmforum-apis/TMF669_PartyRole/master/TMF669-PartyRole-v4.0.0.swagger.json
         implementation: productcatalog-api
         apitype: openapi
         path: /productcatalog/tmf-api/partyRoleManagement/v4
-        developerUI: /productcatalog/tmf-api/partyRoleManagement/v4/docs
+        developerUI: /tmf-api/partyRoleManagement/v4/docs
         port: 8080

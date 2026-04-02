@@ -16,6 +16,7 @@ NC='\033[0m'
 
 CLUSTER_NAME="oda-lab"
 NAMESPACE="canvas"
+COMPONENTS_NAMESPACE="components"
 CANVAS_VERSION="1.1.0"
 
 echo -e "${CYAN}"
@@ -281,44 +282,57 @@ echo -e "${GREEN}  ✓ Webhook ready with SAN certificate.${NC}"
 echo ""
 echo -e "${YELLOW}[7/8] Deploying ODA Components...${NC}"
 
+kubectl create namespace "${COMPONENTS_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
 echo "  → Deploying Deployments, Services and ConfigMaps..."
 kubectl apply -f manifests/services-and-configs.yaml >/dev/null
 echo -e "${GREEN}  ✓ Deployments, Services and ConfigMaps applied.${NC}"
 
-echo "  -> Deploying Canvas UI dashboard..."
+echo "  → Deploying Canvas UI dashboard..."
 kubectl apply -f manifests/canvas-ui.yaml >/dev/null
-echo -e "${GREEN}  v Canvas UI deployed.${NC}"
+echo -e "${GREEN}  ✓ Canvas UI deployed.${NC}"
 
 echo "  → Registering ProductCatalog ODA Component (TMF620)..."
-kubectl apply -f manifests/productcatalog-component.yaml -n "${NAMESPACE}" >/dev/null
+kubectl apply -f manifests/productcatalog-component.yaml -n "${COMPONENTS_NAMESPACE}" >/dev/null
 echo -e "${GREEN}  ✓ ProductCatalog component applied.${NC}"
 
 echo "  → Registering PartyManagement ODA Component (TMF632)..."
-kubectl apply -f manifests/partymanagement-component.yaml -n "${NAMESPACE}" >/dev/null
+kubectl apply -f manifests/partymanagement-component.yaml -n "${COMPONENTS_NAMESPACE}" >/dev/null
 echo -e "${GREEN}  ✓ PartyManagement component applied.${NC}"
 
-echo -n "  Waiting for components to reach 'Complete' status"
+echo -n "  Waiting for ODA APIs to become ready"
 for i in $(seq 1 36); do
-  COMPLETE=$(kubectl get components -n "${NAMESPACE}" --no-headers 2>/dev/null | grep -c "Complete" || true)
-  if [ "$COMPLETE" -ge 2 ]; then echo -e " ${GREEN}✓${NC}"; break; fi
-  echo -n "."; sleep 5
+  READY=$(kubectl get api -n "${COMPONENTS_NAMESPACE}" --no-headers 2>/dev/null | awk '$3=="true"{count++} END{print count+0}')
+  if [ "$READY" -ge 6 ]; then
+    echo -e " ${GREEN}✓${NC}"
+    break
+  fi
+  echo -n "."
+  sleep 5
 done
 
+echo ""
+echo "  → Current API status:"
+kubectl get api -n "${COMPONENTS_NAMESPACE}" 2>/dev/null || true
+
+echo ""
+echo "  → Current Component status:"
+kubectl get components -n "${COMPONENTS_NAMESPACE}" 2>/dev/null || true
 # ─── 8. SETUP PORT-FORWARDS ───────────────────────────────
 echo ""
 echo -e "${YELLOW}[8/8] Setting up port-forwards...${NC}"
 pkill -f "kubectl port-forward" 2>/dev/null || true
 sleep 1
- 
-kubectl port-forward --address 0.0.0.0 svc/canvas-ui  3000:3000 -n "${NAMESPACE}" >/dev/null 2>&1 &
-echo -e "${GREEN}  v Canvas UI          -> http://localhost:3000${NC}"
- 
-kubectl port-forward --address 0.0.0.0 svc/productcatalog-api    8081:8080 -n "${NAMESPACE}" >/dev/null 2>&1 &
-echo -e "${GREEN}  v ProductCatalog API -> http://localhost:8081${NC}"
- 
-kubectl port-forward --address 0.0.0.0 svc/partymanagement-api   8082:8080 -n "${NAMESPACE}" >/dev/null 2>&1 &
-echo -e "${GREEN}  v PartyManagement API-> http://localhost:8082${NC}"
- 
+
+kubectl port-forward --address 0.0.0.0 svc/canvas-ui 3000:3000 -n "${NAMESPACE}" >/dev/null 2>&1 &
+echo -e "${GREEN}  ✓ Canvas UI           -> http://localhost:3000${NC}"
+
+kubectl port-forward --address 0.0.0.0 svc/productcatalog-api 8081:8080 -n "${COMPONENTS_NAMESPACE}" >/dev/null 2>&1 &
+echo -e "${GREEN}  ✓ ProductCatalog API  -> http://localhost:8081${NC}"
+
+kubectl port-forward --address 0.0.0.0 svc/partymanagement-api 8082:8080 -n "${COMPONENTS_NAMESPACE}" >/dev/null 2>&1 &
+echo -e "${GREEN}  ✓ PartyManagement API -> http://localhost:8082${NC}"
+
 sleep 3
 # ─── DONE ────────────────────────────────────────────────────────────────────
 echo ""
