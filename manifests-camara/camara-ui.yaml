@@ -1,0 +1,262 @@
+# ============================================================
+#  LabLabee – Challenge 5: CAMARA
+#  CAMARA Sandbox UI Dashboard
+#  Accessible at http://localhost:3000
+# ============================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: camara-ui-config
+  namespace: camara
+  labels:
+    app: camara-ui
+    challenge: "challenge5-camara"
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>LabLabee – CAMARA Sandbox</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+        header { background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+                 border-bottom: 1px solid #334155; padding: 24px 40px;
+                 display: flex; align-items: center; gap: 16px; }
+        header h1 { font-size: 1.5rem; font-weight: 700; color: #38bdf8; }
+        header span { font-size: 0.9rem; color: #94a3b8; }
+        .badge { background: #0ea5e9; color: #fff; padding: 2px 10px;
+                 border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+        .container { max-width: 1100px; margin: 40px auto; padding: 0 24px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; }
+        .card h2 { font-size: 1rem; font-weight: 600; color: #38bdf8; margin-bottom: 4px; }
+        .card .subtitle { font-size: 0.8rem; color: #64748b; margin-bottom: 16px; }
+        .status { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e;
+               animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .dot.offline { background: #ef4444; animation: none; }
+        .url { font-size: 0.78rem; color: #94a3b8; background: #0f172a;
+               border-radius: 6px; padding: 6px 10px; font-family: monospace;
+               margin-bottom: 8px; word-break: break-all; }
+        .endpoints { list-style: none; }
+        .endpoints li { font-size: 0.8rem; color: #94a3b8; padding: 4px 0;
+                        border-bottom: 1px solid #1e293b; display: flex; gap: 8px; }
+        .method { font-weight: 700; min-width: 48px; }
+        .method.post { color: #4ade80; }
+        .method.get  { color: #38bdf8; }
+        .method.del  { color: #f87171; }
+        .info-box { background: #0f172a; border-left: 3px solid #0ea5e9;
+                    padding: 12px 16px; border-radius: 4px; font-size: 0.8rem;
+                    color: #94a3b8; margin-top: 20px; line-height: 1.6; }
+        .profiles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .profile-tag { background: #1e3a5f; color: #38bdf8; padding: 2px 8px;
+                       border-radius: 4px; font-size: 0.75rem; font-family: monospace; }
+        h3 { font-size: 0.95rem; color: #e2e8f0; margin: 24px 0 12px; }
+      </style>
+    </head>
+    <body>
+      <header>
+        <div>
+          <h1>🌐 LabLabee – CAMARA Sandbox</h1>
+          <span>Challenge 5: Open Gateway and CAMARA</span>
+        </div>
+        <span class="badge">v0.11.0</span>
+      </header>
+
+      <div class="container">
+        <h3>Deployed CAMARA Mock APIs</h3>
+        <div class="grid">
+
+          <!-- QoD Card -->
+          <div class="card">
+            <h2>📡 Quality on Demand (QoD)</h2>
+            <div class="subtitle">CAMARA QualityOnDemand API</div>
+            <div class="status">
+              <div class="dot" id="qod-dot"></div>
+              <span id="qod-status" style="font-size:0.82rem">Checking...</span>
+            </div>
+            <div class="url">http://localhost:8083/camara/quality-on-demand/v0</div>
+            <ul class="endpoints">
+              <li><span class="method post">POST</span>/sessions</li>
+              <li><span class="method get">GET</span>/sessions</li>
+              <li><span class="method get">GET</span>/sessions/{sessionId}</li>
+              <li><span class="method post">POST</span>/sessions/{sessionId}/extend</li>
+              <li><span class="method del">DEL</span>/sessions/{sessionId}</li>
+            </ul>
+            <div class="profiles">
+              <span class="profile-tag">QOS_E</span>
+              <span class="profile-tag">QOS_S</span>
+              <span class="profile-tag">QOS_M</span>
+              <span class="profile-tag">QOS_L</span>
+            </div>
+          </div>
+
+          <!-- Device Location Card -->
+          <div class="card">
+            <h2>📍 Device Location</h2>
+            <div class="subtitle">CAMARA DeviceLocation API</div>
+            <div class="status">
+              <div class="dot" id="loc-dot"></div>
+              <span id="loc-status" style="font-size:0.82rem">Checking...</span>
+            </div>
+            <div class="url">http://localhost:8084/camara/device-location/v0</div>
+            <ul class="endpoints">
+              <li><span class="method post">POST</span>/verify</li>
+              <li><span class="method post">POST</span>/retrieve</li>
+            </ul>
+            <div class="info-box">
+              Area types: CIRCLE<br>
+              Default device position: Paris (48.8566, 2.3522)
+            </div>
+          </div>
+
+          <!-- SIM Swap Card -->
+          <div class="card">
+            <h2>🔐 SIM Swap</h2>
+            <div class="subtitle">CAMARA SimSwap API</div>
+            <div class="status">
+              <div class="dot" id="sim-dot"></div>
+              <span id="sim-status" style="font-size:0.82rem">Checking...</span>
+            </div>
+            <div class="url">http://localhost:8085/camara/sim-swap/v0</div>
+            <ul class="endpoints">
+              <li><span class="method post">POST</span>/retrieve-date</li>
+              <li><span class="method post">POST</span>/check</li>
+            </ul>
+            <div class="info-box">
+              High-risk MSISDN (recent swap):<br>
+              <code style="color:#f87171">+33699999999</code>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="info-box" style="margin-top:28px">
+          <strong style="color:#38bdf8">📚 Quick Start</strong><br><br>
+          Run <code>./test-camara.sh</code> to validate all APIs.<br>
+          Open <code>README.md</code> for the full challenge guide with step-by-step practices.
+        </div>
+      </div>
+
+      <script>
+        async function checkApi(url, dotId, statusId) {
+          const dot = document.getElementById(dotId);
+          const status = document.getElementById(statusId);
+          try {
+            const r = await fetch(url, { signal: AbortSignal.timeout(3000) });
+            if (r.ok) {
+              dot.classList.remove('offline');
+              status.textContent = 'UP – ' + url;
+              status.style.color = '#22c55e';
+            } else {
+              throw new Error(`HTTP ${r.status}`);
+            }
+          } catch (e) {
+            dot.classList.add('offline');
+            status.textContent = 'UNREACHABLE – check NodePort / pod status';
+            status.style.color = '#f87171';
+          }
+        }
+        function checkAll() {
+          checkApi('http://localhost:8083/camara/quality-on-demand/v0/health', 'qod-dot', 'qod-status');
+          checkApi('http://localhost:8084/camara/device-location/v0/health', 'loc-dot', 'loc-status');
+          checkApi('http://localhost:8085/camara/sim-swap/v0/health', 'sim-dot', 'sim-status');
+        }
+        checkAll();
+        setInterval(checkAll, 10000);
+      </script>
+    </body>
+    </html>
+
+  nginx.conf: |
+    events {}
+    http {
+      server {
+        listen 3000;
+        root /usr/share/nginx/html;
+        index index.html;
+        location / { try_files $uri $uri/ /index.html; }
+      }
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camara-ui
+  namespace: camara
+  labels:
+    app: camara-ui
+    challenge: "challenge5-camara"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: camara-ui
+  template:
+    metadata:
+      labels:
+        app: camara-ui
+    spec:
+      containers:
+        - name: ui
+          image: nginx:alpine
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+      volumes:
+        - name: html
+          configMap:
+            name: camara-ui-config
+            items:
+              - key: index.html
+                path: index.html
+        - name: config
+          configMap:
+            name: camara-ui-config
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: camara-ui
+  namespace: camara
+  labels:
+    app: camara-ui
+    challenge: "challenge5-camara"
+spec:
+  selector:
+    app: camara-ui
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      nodePort: 30300
+  type: NodePort

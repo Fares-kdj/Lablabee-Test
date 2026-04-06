@@ -40,7 +40,7 @@ canvasUI:
   enabled: true
   service:
     type: NodePort
-    nodePort: 30000
+    nodePort: 30303
   resources:
     requests:
       memory: "64Mi"

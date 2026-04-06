@@ -14,7 +14,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-CLUSTER_NAME="oda-lab"
+CLUSTER_NAME="shared-lab"
 NAMESPACE="canvas"
 COMPONENTS_NAMESPACE="components"
 CANVAS_VERSION="1.1.0"
@@ -147,11 +147,12 @@ fi
 
 # ─── 2. CREATE KIND CLUSTER ───────────────────────────────────────────────────
 echo ""
-echo -e "${YELLOW}[2/8] Creating Kind cluster '${CLUSTER_NAME}'...${NC}"
+echo -e "${YELLOW}[2/8] Kind cluster 'shared-lab'...
 
 if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
-  echo -e "${GREEN}  ✓ Cluster '${CLUSTER_NAME}' already exists – skipping creation.${NC}"
+  echo -e "${GREEN}  ✓ Cluster '${CLUSTER_NAME}' already exists – reusing it.${NC}"
 else
+  echo "  → Cluster not found – creating it..."
   kind create cluster --name "${CLUSTER_NAME}" --config kind-config.yaml --wait 90s
   echo -e "${GREEN}  ✓ Kind cluster '${CLUSTER_NAME}' created.${NC}"
 fi
@@ -282,6 +283,7 @@ echo -e "${GREEN}  ✓ Webhook ready with SAN certificate.${NC}"
 echo ""
 echo -e "${YELLOW}[7/8] Deploying ODA Components...${NC}"
 
+
 kubectl create namespace "${COMPONENTS_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 echo "  → Deploying Deployments, Services and ConfigMaps..."
@@ -318,29 +320,42 @@ kubectl get api -n "${COMPONENTS_NAMESPACE}" 2>/dev/null || true
 echo ""
 echo "  → Current Component status:"
 kubectl get components -n "${COMPONENTS_NAMESPACE}" 2>/dev/null || true
-# ─── 8. SETUP PORT-FORWARDS ───────────────────────────────
+# ─── 8. VERIFY NODEPORT EXPOSURE ──────────────────────────────────────────────
 echo ""
-echo -e "${YELLOW}[8/8] Setting up port-forwards...${NC}"
-pkill -f "kubectl port-forward" 2>/dev/null || true
-sleep 1
+echo -e "${YELLOW}[8/8] Verifying NodePort exposure...${NC}"
 
-kubectl port-forward --address 0.0.0.0 svc/canvas-ui 3000:3000 -n "${NAMESPACE}" >/dev/null 2>&1 &
-echo -e "${GREEN}  ✓ Canvas UI           -> http://localhost:3000${NC}"
+echo -e "${GREEN}  ✓ Services exposed via NodePort (no port-forward needed)${NC}"
+echo ""
 
-kubectl port-forward --address 0.0.0.0 svc/productcatalog-api 8081:8080 -n "${COMPONENTS_NAMESPACE}" >/dev/null 2>&1 &
-echo -e "${GREEN}  ✓ ProductCatalog API  -> http://localhost:8081${NC}"
+echo "  → NodePort services in namespace '${NAMESPACE}':"
+kubectl get svc -n "${NAMESPACE}" --no-headers 2>/dev/null \
+  | awk '{printf "    %-35s %-12s %s\n", $1, $3, $5}' || true
 
-kubectl port-forward --address 0.0.0.0 svc/partymanagement-api 8082:8080 -n "${COMPONENTS_NAMESPACE}" >/dev/null 2>&1 &
-echo -e "${GREEN}  ✓ PartyManagement API -> http://localhost:8082${NC}"
+echo ""
+echo "  → NodePort services in namespace '${COMPONENTS_NAMESPACE}':"
+kubectl get svc -n "${COMPONENTS_NAMESPACE}" --no-headers 2>/dev/null \
+  | awk '{printf "    %-35s %-12s %s\n", $1, $3, $5}' || true
 
-sleep 3
+echo ""
+echo -n "  Waiting for NodePorts to respond"
+for i in $(seq 1 30); do
+  C1=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3003 2>/dev/null || echo "000")
+  C2=$(curl -s -o /dev/null -w "%{http_code}" \
+    http://localhost:8081/tmf-api/productCatalogManagement/v4/catalog 2>/dev/null || echo "000")
+  if [ "$C1" = "200" ] && [ "$C2" = "200" ]; then
+    echo -e " ${GREEN}✓${NC}"
+    break
+  fi
+  echo -n "."
+  sleep 3
+done
 # ─── DONE ────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  ✅  ODA Canvas is UP and READY!${NC}"
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
 echo ""
-echo -e "  🌐 Canvas UI            → ${CYAN}http://localhost:3000${NC}"
+echo -e "  🌐 Canvas UI            → ${CYAN}http://localhost:3003${NC}"
 echo -e "  🔌 ProductCatalog API   → ${CYAN}http://localhost:8081/tmf-api/productCatalogManagement/v4${NC}"
 echo -e "  🔌 PartyManagement API  → ${CYAN}http://localhost:8082/tmf-api/partyManagement/v4${NC}"
 echo ""

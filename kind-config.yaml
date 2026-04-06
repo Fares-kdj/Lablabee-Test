@@ -1,28 +1,16 @@
 # ============================================================
-#  LabLabee – Challenge 3: ODA Canvas
-#  Kind Cluster Configuration
-#  1 control-plane node – optimized for 4GB RAM
+#  LabLabee – Shared Cluster
+#  Kind Cluster Configuration – Challenge 03 + Challenge 05
+#  Un seul cluster pour les deux challenges
 # ============================================================
 
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 
-name: oda-lab
+name: shared-lab
 
 nodes:
   - role: control-plane
-    # Port mappings so we can access services from the host
-    extraPortMappings:
-      - containerPort: 30000
-        hostPort: 3000
-        protocol: TCP
-      - containerPort: 30081
-        hostPort: 8081
-        protocol: TCP
-      - containerPort: 30082
-        hostPort: 8082
-        protocol: TCP
-    # Resource limits for the Kind node container
     kubeadmConfigPatches:
       - |
         kind: InitConfiguration
@@ -30,6 +18,27 @@ nodes:
           kubeletExtraArgs:
             node-labels: "ingress-ready=true"
             eviction-hard: "memory.available<200Mi"
-
-# Use a specific Kubernetes version compatible with ODA Canvas v1.1.0
-# kubernetesVersion: v1.28.0
+    extraPortMappings:
+      # ── Challenge 03 – ODA Canvas ──────────────────────────
+      - containerPort: 30303
+        hostPort: 3003
+        protocol: TCP
+      - containerPort: 30081
+        hostPort: 8081
+        protocol: TCP
+      - containerPort: 30082
+        hostPort: 8082
+        protocol: TCP
+      # ── Challenge 05 – CAMARA ──────────────────────────────
+      - containerPort: 30300
+        hostPort: 3000
+        protocol: TCP
+      - containerPort: 30083
+        hostPort: 8083
+        protocol: TCP
+      - containerPort: 30084
+        hostPort: 8084
+        protocol: TCP
+      - containerPort: 30085
+        hostPort: 8085
+        protocol: TCP

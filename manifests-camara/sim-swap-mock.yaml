@@ -1,0 +1,172 @@
+# ============================================================
+#  LabLabee – Challenge 5: CAMARA
+#  SIM Swap Mock API – CAMARA v0.11
+#  Implements: POST /retrieve-date, POST /check
+# ============================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sim-swap-mock-config
+  namespace: camara
+  labels:
+    app: camara-simswap-mock
+    challenge: "challenge5-camara"
+data:
+  server.js: |
+    const http = require('http');
+
+    function respond(res, status, body) {
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(body, null, 2));
+    }
+
+    function parseBody(req) {
+      return new Promise((resolve, reject) => {
+        let data = '';
+        req.on('data', chunk => data += chunk);
+        req.on('end', () => {
+          try { resolve(JSON.parse(data || '{}')); }
+          catch (e) { reject(e); }
+        });
+      });
+    }
+
+    // Simulated SIM swap history (MSISDN → last swap date)
+    // +33699999999 simulates a very recent swap (high risk)
+    const simSwapHistory = {
+      '+33699999999': new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),   // 2 hours ago
+      '+33688888888': new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(), // 8 days ago
+    };
+    function getLastSwap(msisdn) {
+      if (simSwapHistory[msisdn]) return simSwapHistory[msisdn];
+      // Default: swap happened 30 days ago (safe)
+      return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    const server = http.createServer(async (req, res) => {
+      const url = req.url;
+      const method = req.method;
+      const BASE = '/camara/sim-swap/v0';
+
+      console.log(`${method} ${url}`);
+
+      // Health check
+      if (url === `${BASE}/health` && method === 'GET') {
+        return respond(res, 200, { status: 'UP', api: 'SimSwap', version: '0.11.0' });
+      }
+
+      // POST /retrieve-date – get the date of the last SIM swap
+      if (url === `${BASE}/retrieve-date` && method === 'POST') {
+        const body = await parseBody(req);
+        if (!body.phoneNumber) {
+          return respond(res, 400, { status: 400, message: 'Missing required field: phoneNumber' });
+        }
+        const lastSwap = getLastSwap(body.phoneNumber);
+        console.log(`  → SIM swap date for ${body.phoneNumber}: ${lastSwap}`);
+        return respond(res, 200, {
+          latestSimChange: lastSwap
+        });
+      }
+
+      // POST /check – check if swap happened within maxAge hours
+      if (url === `${BASE}/check` && method === 'POST') {
+        const body = await parseBody(req);
+        if (!body.phoneNumber) {
+          return respond(res, 400, { status: 400, message: 'Missing required field: phoneNumber' });
+        }
+        const maxAgeHours = body.maxAge || 240; // default 10 days
+        const lastSwap = new Date(getLastSwap(body.phoneNumber));
+        const hoursSinceSwap = (Date.now() - lastSwap.getTime()) / (1000 * 60 * 60);
+        const swapped = hoursSinceSwap <= maxAgeHours;
+
+        console.log(`  → SIM swap check for ${body.phoneNumber}: swapped=${swapped} (${Math.round(hoursSinceSwap)}h ago, threshold=${maxAgeHours}h)`);
+
+        return respond(res, 200, {
+          swapped,
+          ...(swapped && { latestSimChange: lastSwap.toISOString() })
+        });
+      }
+
+      respond(res, 404, { status: 404, message: `Route not found: ${method} ${url}` });
+    });
+
+    server.listen(8080, () => {
+      console.log('CAMARA SIM Swap Mock API listening on :8080');
+      console.log('Base path: /camara/sim-swap/v0');
+      console.log('High-risk MSISDN (recent swap): +33699999999');
+    });
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camara-simswap-mock
+  namespace: camara
+  labels:
+    app: camara-simswap-mock
+    camara-api: sim-swap
+    challenge: "challenge5-camara"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: camara-simswap-mock
+  template:
+    metadata:
+      labels:
+        app: camara-simswap-mock
+        camara-api: sim-swap
+    spec:
+      containers:
+        - name: simswap-mock
+          image: node:18-alpine
+          command: ["node", "/app/server.js"]
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+          volumeMounts:
+            - name: config
+              mountPath: /app
+          readinessProbe:
+            httpGet:
+              path: /camara/sim-swap/v0/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /camara/sim-swap/v0/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: sim-swap-mock-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sim-swap-api
+  namespace: camara
+  labels:
+    app: camara-simswap-mock
+    challenge: "challenge5-camara"
+spec:
+  selector:
+    app: camara-simswap-mock
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30085
+  type: NodePort

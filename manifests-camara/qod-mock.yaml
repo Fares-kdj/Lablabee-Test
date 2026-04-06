@@ -1,0 +1,213 @@
+# ============================================================
+#  LabLabee – Challenge 5: CAMARA
+#  QoD (Quality on Demand) Mock API – CAMARA v0.11
+#  Implements: POST/GET/DELETE /sessions, POST /sessions/{id}/extend
+# ============================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qod-mock-config
+  namespace: camara
+  labels:
+    app: qod-mock
+    challenge: "challenge5-camara"
+data:
+  server.js: |
+    const http = require('http');
+    const { randomUUID } = require('crypto');
+
+    // In-memory session store
+    const sessions = {};
+
+    const QOS_PROFILES = ['QOS_E', 'QOS_S', 'QOS_M', 'QOS_L'];
+    const QOS_LABELS = {
+      QOS_E: 'Video Streaming – High bandwidth, bounded jitter',
+      QOS_S: 'Interactive Gaming – Ultra-low latency',
+      QOS_M: 'Video Call – Balanced bandwidth + latency',
+      QOS_L: 'Low Priority IoT – Best effort'
+    };
+
+    function respond(res, status, body) {
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(body, null, 2));
+    }
+
+    function parseBody(req) {
+      return new Promise((resolve, reject) => {
+        let data = '';
+        req.on('data', chunk => data += chunk);
+        req.on('end', () => {
+          try { resolve(JSON.parse(data || '{}')); }
+          catch (e) { reject(e); }
+        });
+      });
+    }
+
+    const server = http.createServer(async (req, res) => {
+      const url = req.url;
+      const method = req.method;
+      const BASE = '/camara/quality-on-demand/v0';
+
+      console.log(`${method} ${url}`);
+
+      // Health check
+      if (url === `${BASE}/health` && method === 'GET') {
+        return respond(res, 200, { status: 'UP', api: 'QoD', version: '0.11.0' });
+      }
+
+      // List sessions
+      if (url === `${BASE}/sessions` && method === 'GET') {
+        return respond(res, 200, Object.values(sessions));
+      }
+
+      // Create session
+      if (url === `${BASE}/sessions` && method === 'POST') {
+        const body = await parseBody(req);
+        if (!body.ueId || !body.qosProfile) {
+          return respond(res, 400, { status: 400, message: 'Missing required fields: ueId, qosProfile' });
+        }
+        if (!QOS_PROFILES.includes(body.qosProfile)) {
+          return respond(res, 400, { status: 400, message: `Invalid qosProfile. Must be one of: ${QOS_PROFILES.join(', ')}` });
+        }
+        const sessionId = randomUUID();
+        const now = new Date().toISOString();
+        const duration = body.duration || 3600;
+        const expiresAt = new Date(Date.now() + duration * 1000).toISOString();
+        const session = {
+          sessionId,
+          ueId: body.ueId,
+          asId: body.asId || {},
+          qosProfile: body.qosProfile,
+          qosProfileLabel: QOS_LABELS[body.qosProfile],
+          duration,
+          startedAt: now,
+          expiresAt,
+          qosStatus: 'AVAILABLE',
+          statusInfo: 'The QoS session has been successfully established',
+          notificationUri: body.notificationUri || null,
+          notificationAuthToken: body.notificationAuthToken || null
+        };
+        sessions[sessionId] = session;
+        console.log(`  → Session created: ${sessionId} (${body.qosProfile})`);
+        return respond(res, 201, session);
+      }
+
+      // Get / Delete / Extend session by ID
+      const sessionMatch = url.match(new RegExp(`^${BASE}/sessions/([^/]+)(/extend)?$`));
+      if (sessionMatch) {
+        const id = sessionMatch[1];
+        const isExtend = !!sessionMatch[2];
+        const session = sessions[id];
+
+        if (!session) {
+          return respond(res, 404, { status: 404, message: `Session '${id}' not found` });
+        }
+
+        // GET session
+        if (method === 'GET' && !isExtend) {
+          return respond(res, 200, session);
+        }
+
+        // DELETE session
+        if (method === 'DELETE' && !isExtend) {
+          delete sessions[id];
+          console.log(`  → Session deleted: ${id}`);
+          res.writeHead(204);
+          return res.end();
+        }
+
+        // POST /sessions/{id}/extend
+        if (method === 'POST' && isExtend) {
+          const body = await parseBody(req);
+          const additional = body.requestedAdditionalDuration || 1800;
+          const newExpiry = new Date(new Date(session.expiresAt).getTime() + additional * 1000).toISOString();
+          sessions[id].expiresAt = newExpiry;
+          sessions[id].duration += additional;
+          console.log(`  → Session extended: ${id} (+${additional}s)`);
+          return respond(res, 200, sessions[id]);
+        }
+      }
+
+      respond(res, 404, { status: 404, message: `Route not found: ${method} ${url}` });
+    });
+
+    server.listen(8080, () => {
+      console.log('CAMARA QoD Mock API listening on :8080');
+      console.log('Base path: /camara/quality-on-demand/v0');
+      console.log('QoS profiles: QOS_E, QOS_S, QOS_M, QOS_L');
+    });
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camara-qod-mock
+  namespace: camara
+  labels:
+    app: camara-qod-mock
+    camara-api: quality-on-demand
+    challenge: "challenge5-camara"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: camara-qod-mock
+  template:
+    metadata:
+      labels:
+        app: camara-qod-mock
+        camara-api: quality-on-demand
+    spec:
+      containers:
+        - name: qod-mock
+          image: node:18-alpine
+          command: ["node", "/app/server.js"]
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+          volumeMounts:
+            - name: config
+              mountPath: /app
+          readinessProbe:
+            httpGet:
+              path: /camara/quality-on-demand/v0/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /camara/quality-on-demand/v0/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: qod-mock-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qod-api
+  namespace: camara
+  labels:
+    app: camara-qod-mock
+    challenge: "challenge5-camara"
+spec:
+  selector:
+    app: camara-qod-mock
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30083
+  type: NodePort

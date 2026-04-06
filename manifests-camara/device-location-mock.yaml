@@ -1,0 +1,194 @@
+# ============================================================
+#  LabLabee – Challenge 5: CAMARA
+#  Device Location Mock API – CAMARA v0.11
+#  Implements: POST /verify, POST /retrieve
+# ============================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: device-location-mock-config
+  namespace: camara
+  labels:
+    app: camara-location-mock
+    challenge: "challenge5-camara"
+data:
+  server.js: |
+    const http = require('http');
+
+    function respond(res, status, body) {
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(body, null, 2));
+    }
+
+    function parseBody(req) {
+      return new Promise((resolve, reject) => {
+        let data = '';
+        req.on('data', chunk => data += chunk);
+        req.on('end', () => {
+          try { resolve(JSON.parse(data || '{}')); }
+          catch (e) { reject(e); }
+        });
+      });
+    }
+
+    // Haversine formula – distance in meters between two lat/lon points
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const toRad = x => x * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat/2)**2 +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    // Simulated device positions (MSISDN → lat/lon)
+    const devicePositions = {
+      default: { latitude: 48.8566, longitude: 2.3522 }  // Paris
+    };
+
+    const server = http.createServer(async (req, res) => {
+      const url = req.url;
+      const method = req.method;
+      const BASE = '/camara/device-location/v0';
+
+      console.log(`${method} ${url}`);
+
+      // Health check
+      if (url === `${BASE}/health` && method === 'GET') {
+        return respond(res, 200, { status: 'UP', api: 'DeviceLocation', version: '0.11.0' });
+      }
+
+      // POST /verify – check if device is within an area
+      if (url === `${BASE}/verify` && method === 'POST') {
+        const body = await parseBody(req);
+        if (!body.ueId || !body.area) {
+          return respond(res, 400, { status: 400, message: 'Missing required fields: ueId, area' });
+        }
+
+        const msisdn = body.ueId.msisdn || 'default';
+        const devicePos = devicePositions[msisdn] || devicePositions.default;
+        const { center, radius } = body.area;
+        const accuracy = body.accuracy || 80;
+
+        const dist = haversineDistance(
+          devicePos.latitude, devicePos.longitude,
+          center.latitude, center.longitude
+        );
+
+        const inArea = dist <= radius;
+        const matchRate = inArea
+          ? Math.min(99, Math.round(accuracy * (1 - dist / radius / 2)))
+          : Math.round(20 + Math.random() * 15);
+
+        console.log(`  → Device ${msisdn}: distance=${Math.round(dist)}m, radius=${radius}m, inArea=${inArea}`);
+
+        return respond(res, 200, {
+          verificationResult: inArea ? 'TRUE' : 'FALSE',
+          matchRate,
+          lastLocationTime: new Date().toISOString(),
+          area: body.area
+        });
+      }
+
+      // POST /retrieve – get device location
+      if (url === `${BASE}/retrieve` && method === 'POST') {
+        const body = await parseBody(req);
+        if (!body.ueId) {
+          return respond(res, 400, { status: 400, message: 'Missing required field: ueId' });
+        }
+        const msisdn = body.ueId.msisdn || 'default';
+        const pos = devicePositions[msisdn] || devicePositions.default;
+
+        return respond(res, 200, {
+          lastLocationTime: new Date().toISOString(),
+          area: {
+            areaType: 'CIRCLE',
+            center: pos,
+            radius: 200
+          }
+        });
+      }
+
+      respond(res, 404, { status: 404, message: `Route not found: ${method} ${url}` });
+    });
+
+    server.listen(8080, () => {
+      console.log('CAMARA Device Location Mock API listening on :8080');
+      console.log('Base path: /camara/device-location/v0');
+    });
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camara-location-mock
+  namespace: camara
+  labels:
+    app: camara-location-mock
+    camara-api: device-location
+    challenge: "challenge5-camara"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: camara-location-mock
+  template:
+    metadata:
+      labels:
+        app: camara-location-mock
+        camara-api: device-location
+    spec:
+      containers:
+        - name: location-mock
+          image: node:18-alpine
+          command: ["node", "/app/server.js"]
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+          volumeMounts:
+            - name: config
+              mountPath: /app
+          readinessProbe:
+            httpGet:
+              path: /camara/device-location/v0/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /camara/device-location/v0/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: device-location-mock-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: device-location-api
+  namespace: camara
+  labels:
+    app: camara-location-mock
+    challenge: "challenge5-camara"
+spec:
+  selector:
+    app: camara-location-mock
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30084
+  type: NodePort

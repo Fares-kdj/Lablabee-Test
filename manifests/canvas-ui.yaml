@@ -47,23 +47,23 @@ data:
         return;
       }
       if (pathname.startsWith('/proxy/620')) {
-        proxyFetch('http://productcatalog-api.canvas.svc.cluster.local:8080' + pathname.replace('/proxy/620', ''), res);
+        proxyFetch('http://productcatalog-api.components.svc.cluster.local:8080' + pathname.replace('/proxy/620', ''), res);
         return;
       }
       if (pathname.startsWith('/proxy/632')) {
-        proxyFetch('http://partymanagement-api.canvas.svc.cluster.local:8080' + pathname.replace('/proxy/632', ''), res);
+        proxyFetch('http://partymanagement-api.components.svc.cluster.local:8080' + pathname.replace('/proxy/632', ''), res);
         return;
       }
       if (pathname === '/proxy/components') {
-        proxyFetch('https://kubernetes.default.svc/apis/oda.tmforum.org/v1beta2/namespaces/canvas/components', res);
+        proxyFetch('https://kubernetes.default.svc/apis/oda.tmforum.org/v1beta3/namespaces/components/components', res);
         return;
       }
       if (pathname === '/proxy/exposedapis') {
-        proxyFetch('https://kubernetes.default.svc/apis/oda.tmforum.org/v1beta2/namespaces/canvas/exposedapis', res);
+        proxyFetch('https://kubernetes.default.svc/apis/oda.tmforum.org/v1beta3/namespaces/components/exposedapis', res);
         return;
       }
       res.writeHead(404); res.end('Not found');
-    }).listen(3000, () => console.log('Canvas UI on :3000'));
+    }).listen(3003, () => console.log('Canvas UI on :3003'));
 
   index.html: |
     <!DOCTYPE html>
@@ -213,8 +213,8 @@ metadata:
   name: canvas-ui-reader
 rules:
   - apiGroups: ["oda.tmforum.org"]
-    resources: ["components", "exposedapis"]
-    verbs: ["get", "list"]
+    resources: ["components", "exposedapis", "apis"]
+    verbs: ["get", "list", "watch"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -254,7 +254,7 @@ spec:
           image: node:18-alpine
           command: ["node", "/app/server.js"]
           ports:
-            - containerPort: 3000
+            - containerPort: 3003
           volumeMounts:
             - name: server-code
               mountPath: /app
@@ -268,7 +268,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /
-              port: 3000
+              port: 3003
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:
@@ -290,6 +290,6 @@ spec:
     app: canvas-ui
   ports:
     - name: http
-      port: 3000
-      targetPort: 3000
-      nodePort: 30300
+      port: 3003
+      targetPort: 3003
+      nodePort: 30303
